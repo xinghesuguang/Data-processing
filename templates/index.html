@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>欠费用户催费标签分析系统</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.0.2/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.1.2/echarts.min.js"></script>
+    <style>
+        body {
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .card-header {
+            background-color: #6c757d;
+            color: white;
+            font-weight: bold;
+        }
+        .table-responsive {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .chart-container {
+            height: 300px;
+            margin-bottom: 20px;
+        }
+        .feature-card {
+            height: 100%;
+        }
+        .feature-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .spinner-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+        }
+        .method-selector {
+            margin-bottom: 20px;
+        }
+        .comparison-container {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <h1 class="text-center mb-4">欠费用户催费标签分析系统</h1>
+        
+        <!-- 控制面板 -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">控制面板</div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="method-selector">
+                                    <label class="form-label">选择分类方法:</label>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="classificationMethod" id="methodKmeans" value="kmeans">
+                                        <label class="form-check-label" for="methodKmeans">K-means聚类</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="classificationMethod" id="methodXgboost" value="xgboost">
+                                        <label class="form-check-label" for="methodXgboost">XGBoost分类</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="classificationMethod" id="methodDeepseek" value="deepseek">
+                                        <label class="form-check-label" for="methodDeepseek">DeepSeek AI分类</label>
+                                    </div>
+                                </div>
+                                <button id="generateLabelsBtn" class="btn btn-primary me-2">生成催费标签</button>
+                                <button id="loadHistoricalDataBtn" class="btn btn-secondary me-2">加载历史数据</button>
+                                <button id="compareMethodsBtn" class="btn btn-info">比较分类方法</button>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <div id="statusMessage" class="alert alert-info d-none"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 标签分析结果 -->
+        <div id="resultsContainer" class="d-none">
+            <div class="row mb-4">
+                <!-- 标签分布图表 -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">催费标签分布</div>
+                        <div class="card-body">
+                            <div id="labelDistributionChart" class="chart-container"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 特征重要性图表 (仅XGBoost) -->
+                <div class="col-md-6 d-none" id="featureImportanceContainer">
+                    <div class="card">
+                        <div class="card-header">特征重要性 (XGBoost)</div>
+                        <div class="card-body">
+                            <div id="featureImportanceChart" class="chart-container"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 关键特征指标 -->
+                <div class="col-md-6" id="featureMetricsContainer">
+                    <div class="card">
+                        <div class="card-header">关键特征指标</div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="card feature-card">
+                                        <div class="card-body text-center">
+                                            <h5>平均欠费金额</h5>
+                                            <div id="avgArrearsValue" class="feature-value text-primary">-</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card feature-card">
+                                        <div class="card-body text-center">
+                                            <h5>欠费比例</h5>
+                                            <div id="arrearsRatioValue" class="feature-value text-danger">-</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card feature-card">
+                                        <div class="card-body text-center">
+                                            <h5>滞纳金比例</h5>
+                                            <div id="penaltyRatioValue" class="feature-value text-warning">-</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card feature-card">
+                                        <div class="card-body text-center">
+                                            <h5>缴费频率</h5>
+                                            <div id="paymentFrequencyValue" class="feature-value text-success">-</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 用户标签结果表格 -->
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">用户催费标签结果</div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table id="resultsTable" class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>用户编号</th>
+                                            <th>催费等级</th>
+                                            <th>平均欠费金额</th>
+                                            <th>欠费比例</th>
+                                            <th>滞纳金比例</th>
+                                            <th>缴费频率</th>
+                                            <th>欠费严重程度</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- 结果将通过JavaScript动态填充 -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 历史数据显示区域 -->
+        <div id="historicalDataContainer" class="d-none">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">历史缴费数据</div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table id="historicalDataTable" class="table table-striped table-hover">
+                                    <thead>
+                                        <!-- 表头将通过JavaScript动态填充 -->
+                                    </thead>
+                                    <tbody>
+                                        <!-- 数据将通过JavaScript动态填充 -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <div>
+                                    <span id="paginationInfo">显示 0-0 / 0</span>
+                                </div>
+                                <div>
+                                    <button id="prevPageBtn" class="btn btn-sm btn-outline-secondary">上一页</button>
+                                    <button id="nextPageBtn" class="btn btn-sm btn-outline-secondary">下一页</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 方法比较结果区域 -->
+        <div id="comparisonContainer" class="d-none comparison-container">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">分类方法比较</div>
+                        <div class="card-body">
+                            <div class="row mb-4">
+                                <!-- 比较图表 -->
+                                <div class="col-md-6">
+                                    <div id="comparisonChart" class="chart-container"></div>
+                                </div>
+                                
+                                <!-- 比较统计 -->
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h5>一致性分析</h5>
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <div class="card">
+                                                        <div class="card-body text-center">
+                                                            <h6>一致率</h6>
+                                                            <div id="agreementRate" class="feature-value text-primary">-</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <div class="card">
+                                                        <div class="card-body text-center">
+                                                            <h6>不一致数量</h6>
+                                                            <div id="disagreementCount" class="feature-value text-danger">-</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 不一致样本表格 -->
+                            <h5>不一致样本示例</h5>
+                            <div class="table-responsive">
+                                <table id="disagreementTable" class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>用户编号</th>
+                                            <th>K-means标签</th>
+                                            <th>XGBoost标签</th>
+                                            <th>DeepSeek AI标签</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- 不一致样本将通过JavaScript动态填充 -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 加载中提示 -->
+        <div id="loadingSpinner" class="d-none">
+            <div class="spinner-container">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+                <span class="ms-2">处理中，请稍候...</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.0.2/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 全局变量
+        let currentPage = 1;
+        let totalPages = 1;
+        let pageSize = 500;
+        
+        // 初始化页面
+        $(document).ready(function() {
+            // 绑定按钮事件
+            $("#generateLabelsBtn").click(generateLabels);
+            $("#loadHistoricalDataBtn").click(loadHistoricalData);
+            $("#compareMethodsBtn").click(compareClassificationMethods);
+            $("#prevPageBtn").click(prevPage);
+            $("#nextPageBtn").click(nextPage);
+            
+            // 监听分类方法选择变化
+            $('input[name="classificationMethod"]').change(function() {
+                // 清除当前显示的结果
+                clearCurrentResults();
+                
+                // 如果选择了XGBoost，显示特征重要性容器
+                if ($(this).val() === 'xgboost') {
+                    $("#featureImportanceContainer").removeClass('d-none');
+                    $("#featureMetricsContainer").removeClass('col-md-6').addClass('col-md-12');
+                } else {
+                    $("#featureImportanceContainer").addClass('d-none');
+                    $("#featureMetricsContainer").removeClass('col-md-12').addClass('col-md-6');
+                }
+                
+                // 显示提示信息
+                let methodName = '';
+                if ($(this).val() === 'xgboost') {
+                    methodName = 'XGBoost分类';
+                } else if ($(this).val() === 'deepseek') {
+                    methodName = 'DeepSeek AI分类';
+                } else {
+                    methodName = 'K-means聚类';
+                }
+                showStatusMessage(`已切换到${methodName}方法，请重新生成标签`, 'info');
+            });
+        });
+        
+        // 生成催费标签
+        function generateLabels() {
+            // 获取选择的分类方法
+            const method = $('input[name="classificationMethod"]:checked').val();
+            
+            // 检查是否选择了分类方法
+            if (!method) {
+                showStatusMessage('请先选择分类方法（K-means聚类、XGBoost分类 或 DeepSeek AI分类）', 'warning');
+                return;
+            }
+            
+            showLoading("正在生成催费标签...");
+            
+            // 发送请求
+            $.ajax({
+                url: '/generate_labels',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ method: method }),
+                success: function(response) {
+                    hideLoading();
+                    if (response.success) {
+                        displayResults(response);
+                        let methodName = method === 'xgboost' ? 'XGBoost' : (method === 'deepseek' ? 'DeepSeek AI' : 'K-means');
+                        showStatusMessage(`成功生成${response.total_users}个用户的催费标签 (使用${methodName}方法)`, 'success');
+                    } else {
+                        showStatusMessage(`生成标签失败: ${response.error}`, 'danger');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    hideLoading();
+                    showStatusMessage(`请求错误: ${error}`, 'danger');
+                }
+            });
+        }
+        
+        // 加载历史数据
+        function loadHistoricalData() {
+            showLoading("正在加载历史数据...");
+            
+            $.ajax({
+                url: `/get_historical_data?page=${currentPage}&page_size=${pageSize}`,
+                type: 'GET',
+                success: function(response) {
+                    hideLoading();
+                    if (response.success) {
+                        displayHistoricalData(response);
+                        showStatusMessage(`成功加载历史数据，共${response.total_records}条记录`, 'success');
+                    } else {
+                        showStatusMessage(`加载历史数据失败: ${response.error}`, 'danger');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    hideLoading();
+                    showStatusMessage(`请求错误: ${error}`, 'danger');
+                }
+            });
+        }
+        
+        // 比较分类方法
+        function compareClassificationMethods() {
+            showLoading("正在比较分类方法...");
+            
+            $.ajax({
+                url: '/compare_methods',
+                type: 'GET',
+                success: function(response) {
+                    hideLoading();
+                    if (response.success) {
+                        displayComparisonResults(response);
+                        showStatusMessage("成功比较分类方法", 'success');
+                    } else {
+                        showStatusMessage(`比较分类方法失败: ${response.error}`, 'danger');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    hideLoading();
+                    showStatusMessage(`请求错误: ${error}`, 'danger');
+                }
+            });
+        }
+        
+        // 显示标签结果
+        function displayResults(data) {
+            // 显示结果容器，隐藏其他容器
+            $("#resultsContainer").removeClass("d-none");
+            $("#historicalDataContainer").addClass("d-none");
+            $("#comparisonContainer").addClass("d-none");
+            
+            // 填充表格
+            const tableBody = $("#resultsTable tbody");
+            tableBody.empty();
+            
+            data.users.forEach(user => {
+                const row = `<tr>
+                    <td>${user.用户编号}</td>
+                    <td>
+                        <span class="badge ${getBadgeClass(user.催费等级)}">
+                            ${user.催费等级}
+                        </span>
+                    </td>
+                    <td>${formatNumber(user.avg_arrears)}</td>
+                    <td>${formatPercent(user.arrears_ratio)}</td>
+                    <td>${formatPercent(user.penalty_ratio)}</td>
+                    <td>${formatPercent(user.payment_frequency)}</td>
+                    <td>${formatNumber(user.arrears_severity)}</td>
+                </tr>`;
+                tableBody.append(row);
+            });
+            
+            // 更新特征指标
+            $("#avgArrearsValue").text(formatNumber(data.feature_summary.avg_arrears_mean));
+            $("#arrearsRatioValue").text(formatPercent(data.feature_summary.arrears_ratio_mean));
+            $("#penaltyRatioValue").text(formatPercent(data.feature_summary.penalty_ratio_mean));
+            $("#paymentFrequencyValue").text(formatPercent(data.feature_summary.payment_frequency_mean));
+            
+            // 绘制标签分布图表
+            drawLabelDistributionChart(data.label_distribution);
+            
+            // 如果是XGBoost方法，尝试绘制特征重要性图表
+            if (data.method === 'xgboost' && data.feature_importance) {
+                $("#featureImportanceContainer").removeClass('d-none');
+                drawFeatureImportanceChart(data.feature_importance);
+            } else {
+                $("#featureImportanceContainer").addClass('d-none');
+            }
+        }
+        
+        // 显示历史数据
+        function displayHistoricalData(data) {
+            // 显示历史数据容器，隐藏其他容器
+            $("#historicalDataContainer").removeClass("d-none");
+            $("#resultsContainer").addClass("d-none");
+            $("#comparisonContainer").addClass("d-none");
+            
+            // 更新分页信息
+            currentPage = data.current_page;
+            totalPages = data.total_pages;
+            const startIdx = (currentPage - 1) * pageSize + 1;
+            const endIdx = Math.min(startIdx + pageSize - 1, data.total_records);
+            $("#paginationInfo").text(`显示 ${startIdx}-${endIdx} / ${data.total_records}`);
+            
+            // 更新分页按钮状态
+            $("#prevPageBtn").prop("disabled", currentPage <= 1);
+            $("#nextPageBtn").prop("disabled", currentPage >= totalPages);
+            
+            // 填充表头
+            const tableHead = $("#historicalDataTable thead");
+            tableHead.empty();
+            let headerRow = "<tr>";
+            data.columns.forEach(column => {
+                headerRow += `<th>${column}</th>`;
+            });
+            headerRow += "</tr>";
+            tableHead.append(headerRow);
+            
+            // 填充表格数据
+            const tableBody = $("#historicalDataTable tbody");
+            tableBody.empty();
+            
+            data.data.forEach(row => {
+                let dataRow = "<tr>";
+                data.columns.forEach(column => {
+                    dataRow += `<td>${row[column] !== null ? row[column] : ''}</td>`;
+                });
+                dataRow += "</tr>";
+                tableBody.append(dataRow);
+            });
+        }
+        
+        // 显示比较结果
+        function displayComparisonResults(data) {
+            // 显示比较容器，隐藏其他容器
+            $("#comparisonContainer").removeClass("d-none");
+            $("#resultsContainer").addClass("d-none");
+            $("#historicalDataContainer").addClass("d-none");
+            
+            // 检查是否有比较数据
+            if (!data.comparison) {
+                showStatusMessage("无法比较：需要先生成两种方法的标签结果", 'warning');
+                return;
+            }
+            
+            // 更新一致性统计
+            $("#agreementRate").text(formatPercent(data.comparison.agreement_rate / 100));
+            $("#disagreementCount").text(data.comparison.disagreement_count);
+            
+            // 填充不一致样本表格
+            const tableBody = $("#disagreementTable tbody");
+            tableBody.empty();
+            
+            data.comparison.sample_disagreements.forEach(sample => {
+                const row = `<tr>
+                    <td>${sample.用户编号}</td>
+                    <td><span class="badge ${getBadgeClass(sample.kmeans_标签)}">${sample.kmeans_标签}</span></td>
+                    <td><span class="badge ${getBadgeClass(sample.xgboost_标签)}">${sample.xgboost_标签}</span></td>
+                    <td><span class="badge ${getBadgeClass(sample.deepseek_标签)}">${sample.deepseek_标签}</span></td>
+                </tr>`;
+                tableBody.append(row);
+            });
+            
+            // 绘制比较图表
+            drawComparisonChart(data.methods);
+        }
+        
+        // 绘制标签分布图表
+        function drawLabelDistributionChart(distribution) {
+            const chart = echarts.init(document.getElementById('labelDistributionChart'));
+            
+            const data = [];
+            for (const label in distribution) {
+                data.push({
+                    name: label,
+                    value: distribution[label]
+                });
+            }
+            
+            const option = {
+                title: {
+                    text: '催费标签分布',
+                    left: 'center'
+                },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: '{a} <br/>{b}: {c} ({d}%)'
+                },
+                legend: {
+                    orient: 'vertical',
+                    left: 'left',
+                    data: Object.keys(distribution)
+                },
+                series: [
+                    {
+                        name: '催费等级',
+                        type: 'pie',
+                        radius: '50%',
+                        center: ['50%', '60%'],
+                        data: data,
+                        emphasis: {
+                            itemStyle: {
+                                shadowBlur: 10,
+                                shadowOffsetX: 0,
+                                shadowColor: 'rgba(0, 0, 0, 0.5)'
+                            }
+                        },
+                        itemStyle: {
+                            color: function(params) {
+                                const colors = {
+                                    '轻度提醒': '#91cc75',
+                                    '中度催缴': '#fac858',
+                                    '重度追讨': '#ee6666'
+                                };
+                                return colors[params.name] || '#5470c6';
+                            }
+                        }
+                    }
+                ]
+            };
+            
+            chart.setOption(option);
+            window.addEventListener('resize', function() {
+                chart.resize();
+            });
+        }
+        
+        // 绘制特征重要性图表
+        function drawFeatureImportanceChart(featureImportance) {
+            const chart = echarts.init(document.getElementById('featureImportanceChart'));
+            
+            const features = [];
+            const values = [];
+            
+            for (const feature in featureImportance) {
+                features.push(feature);
+                values.push(featureImportance[feature]);
+            }
+            
+            const option = {
+                title: {
+                    text: '特征重要性',
+                    left: 'center'
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'shadow'
+                    }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'value',
+                    boundaryGap: [0, 0.01]
+                },
+                yAxis: {
+                    type: 'category',
+                    data: features
+                },
+                series: [
+                    {
+                        name: '重要性',
+                        type: 'bar',
+                        data: values,
+                        itemStyle: {
+                            color: '#5470c6'
+                        }
+                    }
+                ]
+            };
+            
+            chart.setOption(option);
+            window.addEventListener('resize', function() {
+                chart.resize();
+            });
+        }
+        
+        // 绘制比较图表
+        function drawComparisonChart(methods) {
+            const chart = echarts.init(document.getElementById('comparisonChart'));
+            
+            // 准备数据
+            const labels = ['轻度提醒', '中度催缴', '重度追讨'];
+            const kmeansData = [];
+            const xgboostData = [];
+            const deepseekData = [];
+            
+            // 查找各方法的数据
+            methods.forEach(method => {
+                if (method.method === 'kmeans') {
+                    labels.forEach(label => {
+                        kmeansData.push(method.label_distribution[label] || 0);
+                    });
+                } else if (method.method === 'xgboost') {
+                    labels.forEach(label => {
+                        xgboostData.push(method.label_distribution[label] || 0);
+                    });
+                } else if (method.method === 'deepseek') {
+                    labels.forEach(label => {
+                        deepseekData.push(method.label_distribution[label] || 0);
+                    });
+                }
+            });
+            
+            const option = {
+                title: {
+                    text: '分类方法标签分布比较',
+                    left: 'center'
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'shadow'
+                    }
+                },
+                legend: {
+                    data: ['K-means', 'XGBoost', 'DeepSeek AI'],
+                    top: 'bottom'
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: labels
+                },
+                yAxis: {
+                    type: 'value'
+                },
+                series: [
+                    {
+                        name: 'K-means',
+                        type: 'bar',
+                        data: kmeansData,
+                        itemStyle: {
+                            color: '#5470c6'
+                        }
+                    },
+                    {
+                        name: 'XGBoost',
+                        type: 'bar',
+                        data: xgboostData,
+                        itemStyle: {
+                            color: '#91cc75'
+                        }
+                    },
+                    {
+                        name: 'DeepSeek AI',
+                        type: 'bar',
+                        data: deepseekData,
+                        itemStyle: {
+                            color: '#fac858'
+                        }
+                    }
+                ]
+            };
+            
+            chart.setOption(option);
+            window.addEventListener('resize', function() {
+                chart.resize();
+            });
+        }
+        
+        // 上一页
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                loadHistoricalData();
+            }
+        }
+        
+        // 下一页
+        function nextPage() {
+            if (currentPage < totalPages) {
+                currentPage++;
+                loadHistoricalData();
+            }
+        }
+        
+        // 清除当前显示的结果
+        function clearCurrentResults() {
+            // 隐藏所有结果容器
+            $("#resultsContainer").addClass("d-none");
+            $("#historicalDataContainer").addClass("d-none");
+            $("#comparisonContainer").addClass("d-none");
+            
+            // 清空表格内容
+            $("#resultsTable tbody").empty();
+            $("#historicalDataTable thead").empty();
+            $("#historicalDataTable tbody").empty();
+            $("#disagreementTable tbody").empty();
+            
+            // 清空特征指标
+            $("#avgArrearsValue").text('-');
+            $("#arrearsRatioValue").text('-');
+            $("#penaltyRatioValue").text('-');
+            $("#paymentFrequencyValue").text('-');
+            
+            // 清空图表
+            const labelChart = echarts.getInstanceByDom(document.getElementById('labelDistributionChart'));
+            if (labelChart) {
+                labelChart.clear();
+            }
+            
+            const featureChart = echarts.getInstanceByDom(document.getElementById('featureImportanceChart'));
+            if (featureChart) {
+                featureChart.clear();
+            }
+            
+            const comparisonChart = echarts.getInstanceByDom(document.getElementById('comparisonChart'));
+            if (comparisonChart) {
+                comparisonChart.clear();
+            }
+        }
+        
+        // 显示加载中
+        function showLoading(message) {
+            $("#loadingSpinner").removeClass("d-none");
+            $("#loadingSpinner span:last").text(message || "处理中，请稍候...");
+        }
+        
+        // 隐藏加载中
+        function hideLoading() {
+            $("#loadingSpinner").addClass("d-none");
+        }
+        
+        // 显示状态消息
+        function showStatusMessage(message, type) {
+            const statusDiv = $("#statusMessage");
+            statusDiv.removeClass("d-none alert-info alert-success alert-warning alert-danger");
+            statusDiv.addClass(`alert-${type || 'info'}`);
+            statusDiv.text(message);
+            
+            // 5秒后自动隐藏
+            setTimeout(() => {
+                statusDiv.addClass("d-none");
+            }, 5000);
+        }
+        
+        // 格式化数字
+        function formatNumber(value) {
+            if (value === undefined || value === null) return '-';
+            return parseFloat(value).toFixed(2);
+        }
+        
+        // 格式化百分比
+        function formatPercent(value) {
+            if (value === undefined || value === null) return '-';
+            return (parseFloat(value) * 100).toFixed(2) + '%';
+        }
+        
+        // 获取标签对应的Badge类
+        function getBadgeClass(label) {
+            switch(label) {
+                case '轻度提醒': return 'bg-success';
+                case '中度催缴': return 'bg-warning';
+                case '重度追讨': return 'bg-danger';
+                default: return 'bg-secondary';
+            }
+        }
+    </script>
+</body>
+</html>
