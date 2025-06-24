@@ -49,12 +49,6 @@
 ├── deepseek_classifier.py          # DeepSeek AI分类器实现
 ├── templates/                      # HTML模板目录
 │   └── index.html                  # 主页面模板
-├── tests/                          # 测试文件目录
-│   └── test_deepseek_small.py      # DeepSeek功能测试
-├── utils/                          # 工具类目录
-│   ├── app.py                      # 工具应用
-│   ├── index.html                  # 工具页面
-│   └── k_means_cluster.py          # K-means聚类工具
 └── __pycache__/                    # Python缓存目录
 ```
 
