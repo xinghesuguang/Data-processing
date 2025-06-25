@@ -265,26 +265,26 @@ def main():
     
     # 结果输出
     print("\n11. 保存结果...")
-    output_cols = ['用户编号', '催费等级', 'avg_arrears', 'arrears_ratio', 
-                   'penalty_ratio', 'payment_frequency', 'arrears_severity']
-    available_output_cols = [col for col in output_cols if col in df.columns]
     
-    # 优先保存Excel格式
+    # 排除初始催费等级列和arrears_z列，与k_means.py保持一致
+    # output_df = df.drop(columns=['初始催费等级', 'arrears_z'], errors='ignore')
+    # 显示所有列
+    output_df = df
     excel_filename = 'XGBoost用户催费标签结果.xlsx'
     try:
-        df[available_output_cols].to_excel(excel_filename, index=False)
+        output_df.to_excel(excel_filename, index=False)
         print(f"结果已保存到 '{excel_filename}'")
     except PermissionError:
         print(f"无法保存到 '{excel_filename}'，文件可能被占用。请关闭Excel文件后重试。")
         # 备用方案：保存为CSV格式
         csv_filename = 'XGBoost用户催费标签结果.csv'
-        df[available_output_cols].to_csv(csv_filename, index=False, encoding='utf-8-sig')
+        output_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
         print(f"已保存为CSV格式到 '{csv_filename}'")
     except Exception as e:
         print(f"保存Excel文件时出错: {e}")
         # 备用方案：保存为CSV格式
         csv_filename = 'XGBoost用户催费标签结果.csv'
-        df[available_output_cols].to_csv(csv_filename, index=False, encoding='utf-8-sig')
+        output_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
         print(f"已保存为CSV格式到 '{csv_filename}'")
     
     return df
