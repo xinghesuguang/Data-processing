@@ -50,9 +50,8 @@
 ├── k_means.py                      # K-means聚类算法实现
 ├── xgboost_classifier.py           # XGBoost分类器实现
 ├── deepseek_classifier.py          # DeepSeek AI分类器实现
-├── templates/                      # HTML模板目录
-│   └── index.html                  # 主页面模板，响应式设计
-└── __pycache__/                    # Python缓存目录
+└── templates/                      # HTML模板目录
+   └── index.html                  # 主页面模板，响应式设计
 ```
 
 ## 安装与运行
