@@ -441,7 +441,7 @@
                     <td>${formatNumber(user.avg_arrears)}</td>
                     <td>${formatPercent(user.arrears_ratio)}</td>
                     <td>${formatPercent(user.penalty_ratio)}</td>
-                    <td>${formatPercent(user.payment_frequency)}</td>
+                    <td>${formatNumber(user.payment_frequency)}</td>
                     <td>${formatNumber(user.arrears_severity)}</td>
                 </tr>`;
                 tableBody.append(row);
@@ -451,7 +451,7 @@
             $("#avgArrearsValue").text(formatNumber(data.feature_summary.avg_arrears_mean));
             $("#arrearsRatioValue").text(formatPercent(data.feature_summary.arrears_ratio_mean));
             $("#penaltyRatioValue").text(formatPercent(data.feature_summary.penalty_ratio_mean));
-            $("#paymentFrequencyValue").text(formatPercent(data.feature_summary.payment_frequency_mean));
+            $("#paymentFrequencyValue").text(formatNumber(data.feature_summary.payment_frequency_mean));
             
             // 绘制标签分布图表
             drawLabelDistributionChart(data.label_distribution);

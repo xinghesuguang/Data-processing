@@ -40,7 +40,7 @@ def aggregate_user_data(df):
         if col in df.columns:
             if col in ['缴费次数']:
                 agg_dict[col] = 'sum'  # 缴费次数求和
-            elif col in ['合同容量', '运行容量']:
+            elif col in ['合同容量', '运行容量', '欠费金额']:
                 agg_dict[col] = 'mean'  # 容量取平均
             else:
                 agg_dict[col] = 'sum'  # 其他费用类求和
@@ -60,12 +60,7 @@ def calculate_features(df):
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     
     # 基础特征：平均欠费金额
-    available_cols = [col for col in numeric_cols if col in df.columns]
-    
-    if available_cols:
-        df['avg_arrears'] = df[available_cols].mean(axis=1)
-    else:
-        df['avg_arrears'] = df['欠费金额'] if '欠费金额' in df.columns else 0
+    df['avg_arrears'] = df['欠费金额'] if '欠费金额' in df.columns else 0
     
     # 基础特征：总延迟次数
     df['total_delays'] = (df['欠费金额'] > 0).astype(int) if '欠费金额' in df.columns else 0
