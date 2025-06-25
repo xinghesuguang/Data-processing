@@ -7,7 +7,7 @@
 ## 功能特点
 
 - 🤖 **多种机器学习算法**：支持K-means聚类、XGBoost梯度提升决策树和DeepSeek AI三种分类方法
-- 🔧 **多维特征工程**：7个核心特征全面评估用户风险
+- 🔧 **多维特征工程**：11个核心特征全面评估用户风险（包括欠费金额、滞纳金、电费、缴费次数、合同容量、运行容量、欠费比例、滞纳金比例、缴费频率、容量利用率、欠费严重程度）
 - 📊 **丰富数据可视化**：饼图、柱状图、特征统计等多维度展示
 - 🏷️ **智能标签体系**：轻度提醒、中度催缴、重度追讨三级分类
 - 🎯 **业务规则融合**：结合机器学习和业务经验的混合决策
@@ -16,17 +16,20 @@
 - 🔍 **详细特征展示**：显示每个用户的关键风险指标
 - 🔄 **算法比较功能**：支持比较不同分类方法的结果差异
 - 🧠 **AI智能分析**：集成DeepSeek AI进行智能催费标签预测
+- 📋 **历史数据管理**：支持查看和管理历史分类结果
+- 🔗 **RESTful API**：提供完整的API接口支持
 
 ## 技术栈
 
 ### 后端
 - **Python 3.8+**
-- **Flask**：Web框架
-- **pandas**：数据处理
-- **scikit-learn**：机器学习（K-means聚类）
-- **XGBoost**：梯度提升决策树
-- **DeepSeek API**：AI智能分析
-- **openpyxl**：Excel文件处理
+- **Flask 2.3.3**：Web框架
+- **pandas 2.1.1**：数据处理
+- **scikit-learn 1.3.0**：机器学习（K-means聚类）
+- **XGBoost 1.7.6**：梯度提升决策树
+- **requests 2.31.0**：HTTP请求库（DeepSeek API调用）
+- **openpyxl 3.1.2**：Excel文件处理
+- **numpy 1.24.3**：数值计算
 
 ### 前端
 - **Bootstrap 5**：UI框架
@@ -37,7 +40,7 @@
 
 ```
 项目/
-├── app.py                          # Flask Web应用主文件
+├── app.py                          # Flask Web应用主文件，集成三种分类方法的API
 ├── requirements.txt                # Python依赖包列表
 ├── README.md                       # 项目说明文档
 ├── 欠费用户历史数据.xlsx            # 原始数据文件
@@ -48,7 +51,7 @@
 ├── xgboost_classifier.py           # XGBoost分类器实现
 ├── deepseek_classifier.py          # DeepSeek AI分类器实现
 ├── templates/                      # HTML模板目录
-│   └── index.html                  # 主页面模板
+│   └── index.html                  # 主页面模板，响应式设计
 └── __pycache__/                    # Python缓存目录
 ```
 
@@ -196,23 +199,40 @@ python app.py
 
 ## 文件说明
 
+## API接口说明
+
+### 主要API端点
+
+1. **POST /generate_labels**
+   - 功能：生成催费标签
+   - 参数：`method`（分类方法：kmeans/xgboost/deepseek）
+   - 返回：分类结果和统计信息
+
+2. **GET /get_history**
+   - 功能：获取历史分类数据
+   - 参数：`method`（分类方法）
+   - 返回：历史分类结果
+
+3. **POST /compare_methods**
+   - 功能：比较不同分类方法的结果
+   - 返回：三种方法的对比分析
+
+### 文件说明
+
 ### 核心文件
 
-- **app.py**：Flask Web应用主文件，提供完整的Web服务
-- **k_means.py**：K-means聚类算法实现
-- **xgboost_classifier.py**：XGBoost分类器实现
-- **deepseek_classifier.py**：DeepSeek AI分类器实现
-- **templates/index.html**：主页面模板，支持三种分类方法
+- **app.py**：Flask Web应用主文件，提供完整的Web服务和API接口
+- **k_means.py**：K-means聚类算法实现，包含数据预处理、聚类分析和标签映射
+- **xgboost_classifier.py**：XGBoost分类器实现，包含特征工程、模型训练和预测
+- **deepseek_classifier.py**：DeepSeek AI分类器实现，集成大语言模型进行智能分析
+- **templates/index.html**：主页面模板，支持三种分类方法和结果可视化
 
 ### 数据文件
 
 - **欠费用户历史数据.xlsx**：原始用户缴费数据
-- ***用户催费标签结果.xlsx**：各种方法生成的标签结果
-
-### 工具文件
-
-- **utils/k_means_cluster.py**：K-means聚类工具类
-- **tests/test_deepseek_small.py**：DeepSeek功能测试
+- **k_means用户催费标签结果.xlsx**：K-means方法生成的标签结果
+- **XGBoost用户催费标签结果.xlsx**：XGBoost方法生成的标签结果
+- **DeepSeek用户催费标签结果.xlsx**：DeepSeek AI方法生成的标签结果
 
 ## 扩展功能
 
