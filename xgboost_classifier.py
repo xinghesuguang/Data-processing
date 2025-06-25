@@ -38,12 +38,10 @@ def aggregate_user_data(df):
     
     for col in numeric_cols:
         if col in df.columns:
-            if col in ['缴费次数']:
+            if col in ['缴费次数','欠费金额', '滞纳金', '电费', '电量']:
                 agg_dict[col] = 'sum'  # 缴费次数求和
-            elif col in ['合同容量', '运行容量', '欠费金额']:
+            elif col in ['合同容量', '运行容量']:
                 agg_dict[col] = 'mean'  # 容量取平均
-            else:
-                agg_dict[col] = 'sum'  # 其他费用类求和
     
     # 按用户编号聚合
     user_df = df.groupby('用户编号').agg(agg_dict).reset_index()

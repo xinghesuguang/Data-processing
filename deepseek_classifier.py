@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import json
 import requests
 import os
@@ -24,31 +25,88 @@ def load_data(file_path):
 
 def aggregate_user_data(df):
     """
-    聚合用户数据，计算每个用户的统计特征
+    按用户编号聚合数据，将多条记录合并为每个用户一条记录
     """
-    # 按用户编号聚合数据
-    user_stats = df.groupby('用户编号').agg({
-        '欠费金额': ['mean', 'max', 'sum', 'count'],
-        '滞纳金': ['mean', 'max', 'sum'],
-        '缴费次数': ['mean', 'sum', 'count']
-    }).round(2)
+    if '用户编号' not in df.columns:
+        print("警告：未找到'用户编号'列，无法进行用户聚合")
+        return df
     
-    # 重命名列
-    user_stats.columns = [
-        'avg_arrears', 'max_arrears', 'total_arrears', 'arrears_months',
-        'avg_penalty', 'max_penalty', 'total_penalty',
-        'avg_payment_count', 'total_payment_count', 'payment_months'
-    ]
+    print(f"聚合前数据：{len(df)}条记录")
+    print(f"唯一用户数：{df['用户编号'].nunique()}个")
     
-    # 计算衍生特征
-    user_stats['arrears_ratio'] = (user_stats['total_arrears'] / (user_stats['total_arrears'] + 1)).fillna(0)  # 简化欠费比例计算
-    user_stats['penalty_ratio'] = (user_stats['total_penalty'] / user_stats['total_arrears']).fillna(0)
-    user_stats['payment_frequency'] = user_stats['total_payment_count'] / 24  # 24个月的缴费频率
-    user_stats['arrears_severity'] = user_stats['max_arrears'] / user_stats['avg_arrears'].replace(0, 1)
+    # 数值列聚合方式：求和或平均
+    numeric_cols = ['电费', '滞纳金', '欠费金额', '电量', '合同容量', '运行容量', '缴费次数']
+    agg_dict = {}
     
-    user_stats = user_stats.reset_index()
-    print(f"聚合完成，共 {len(user_stats)} 个用户")
-    return user_stats
+    for col in numeric_cols:
+        if col in df.columns:
+            if col in ['缴费次数','欠费金额', '滞纳金', '电费', '电量']:
+                agg_dict[col] = 'sum'  # 费用类和缴费次数求和
+            elif col in ['合同容量', '运行容量']:
+                agg_dict[col] = 'mean'  # 容量取平均
+
+    # 按用户编号聚合
+    user_df = df.groupby('用户编号').agg(agg_dict).reset_index()
+    
+    print(f"聚合后数据：{len(user_df)}条记录")
+    return user_df
+
+# 增强特征计算
+def calculate_features(df):
+    # 首先处理数据中的空值
+    numeric_cols = ['电费', '滞纳金', '欠费金额', '电量', '合同容量', '运行容量', '缴费次数']
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    
+    # 基础特征：平均欠费金额
+    df['avg_arrears'] = df['欠费金额'] if '欠费金额' in df.columns else 0
+    
+    # 基础特征：总延迟次数
+    df['total_delays'] = (df['欠费金额'] > 0).astype(int) if '欠费金额' in df.columns else 0
+    
+    # 增强特征1：欠费金额占电费比例
+    if '欠费金额' in df.columns and '电费' in df.columns:
+        df['arrears_ratio'] = df['欠费金额'] / (df['电费'] + 1e-6)  # 避免除零
+    else:
+        df['arrears_ratio'] = 0
+    
+    # 增强特征2：滞纳金占欠费金额比例
+    if '滞纳金' in df.columns and '欠费金额' in df.columns:
+        df['penalty_ratio'] = df['滞纳金'] / (df['欠费金额'] + 1e-6)
+    else:
+        df['penalty_ratio'] = 0
+    
+    # 增强特征3：缴费频率（缴费次数/总月数，假设24个月）
+    if '缴费次数' in df.columns:
+        df['payment_frequency'] = df['缴费次数'] / 24
+    else:
+        df['payment_frequency'] = 0
+    
+    # 增强特征4：用电量稳定性（基于合同容量和运行容量）
+    if '合同容量' in df.columns and '运行容量' in df.columns:
+        df['capacity_utilization'] = df['运行容量'] / (df['合同容量'] + 1e-6)
+    else:
+        df['capacity_utilization'] = 1
+    
+    # 增强特征5：欠费严重程度（综合指标）
+    df['arrears_severity'] = (df['avg_arrears'] * 0.4 + 
+                             df['arrears_ratio'] * 100 * 0.3 + 
+                             df['penalty_ratio'] * 100 * 0.3)
+    
+    # 处理计算后可能产生的无穷值和NaN值
+    feature_cols = ['avg_arrears', 'total_delays', 'arrears_ratio', 
+                   'penalty_ratio', 'payment_frequency', 'capacity_utilization', 
+                   'arrears_severity']
+    
+    for col in feature_cols:
+        if col in df.columns:
+            # 替换无穷值为0
+            df[col] = df[col].replace([np.inf, -np.inf], 0)
+            # 填充NaN值为0
+            df[col] = df[col].fillna(0)
+    
+    return df
 
 def prepare_data_for_api(user_data, batch_size=10):
     """
@@ -89,15 +147,16 @@ def create_classification_prompt(batch_data):
     for _, row in batch_data.iterrows():
         prompt += f"""
 用户编号: {row['用户编号']}
-平均欠费金额: {row['avg_arrears']}
-最大欠费金额: {row['max_arrears']}
-总欠费金额: {row['total_arrears']}
-欠费月数: {row['arrears_months']}
-平均滞纳金: {row['avg_penalty']}
-总滞纳金: {row['total_penalty']}
+欠费金额: {row['欠费金额']}
+滞纳金: {row['滞纳金']}
+电费: {row['电费']}
+缴费次数: {row['缴费次数']}
+合同容量: {row['合同容量']:.2f}
+运行容量: {row['运行容量']:.2f}
 欠费比例: {row['arrears_ratio']:.2f}
 滞纳金比例: {row['penalty_ratio']:.2f}
 缴费频率: {row['payment_frequency']:.2f}
+容量利用率: {row['capacity_utilization']:.2f}
 欠费严重程度: {row['arrears_severity']:.2f}
 ---
 """
@@ -258,6 +317,9 @@ def main():
         
         # 聚合用户数据
         user_data = aggregate_user_data(df)
+        
+        # 计算增强特征
+        user_data = calculate_features(user_data)
         
         # 使用DeepSeek API进行分类
         classifications = classify_users_with_deepseek(user_data)
