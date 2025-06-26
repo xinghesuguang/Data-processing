@@ -8,7 +8,7 @@ from datetime import datetime
 
 # TODO: 请在此处填写您的DeepSeek API Key
 
-DEEPSEEK_API_KEY = "sk-b8d0a53e90a54ba39f171f1c9b64689b"
+DEEPSEEK_API_KEY = "请在此处填写您的DeepSeek API Key"
 DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
 def load_data(file_path):
